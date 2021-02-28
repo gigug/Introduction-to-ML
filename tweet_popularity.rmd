@@ -595,12 +595,6 @@ countd <- sqrt(countd/length(testSet$which_qu))
 #2.02 con riduzione risposte da ~40k a ~10k
 #1.94 con aggiunta POS tagging
 
-#data.frame(actual=testSet$which_qu, predicted=predict_rf)
-
-#forest_rmse = rmse(testSet$which_qu , predict_rf)
-#forest_rmse =  (mean(predict_rf-testSet$which_qu)^2)^0.5
-
-#variable ranking
 rf$importance
 varImpPlot(rf)
 
@@ -810,105 +804,4 @@ for (i in 1:length(testSet$which_qu)){
 }
 countd <- sqrt(countd/length(testSet$which_qu))
 
-```
-
-
-
-
-
-```{r best weekday to post, echo = TRUE}
-day <- vector(mode = "integer", length = 7)
-day_count <- vector(mode = "integer", length = 7)
-hour <- vector(mode = "integer", length = 24)
-hour_count <- vector(mode = "integer", length = 24)
-
-for(i in 1:7){
-  day[i] = 0
-  day_count[i] = 0
-  hour[i] = 0
-  hour_count[i] = 0
-}
-
-for (i in 1:length(total_ds.cut4$status_id)){
-  #if (total_ds.cut4$is_reply[i] == FALSE && total_ds.cut4$mentnum[i] == 0){
-    if (total_ds.cut4$date2[i] == 1){
-    day[1] = day[1] + total_ds.cut4$which_qu[i]
-    day_count[1] = day_count[1] + 1
-  }
-  else if (total_ds.cut4$date2[i] == 2){
-    day[2] = day[2] + total_ds.cut4$which_qu[i]
-    day_count[2] = day_count[2] + 1
-  }
-  else if (total_ds.cut4$date2[i] == 3){
-    day[3] = day[3] + total_ds.cut4$which_qu[i]
-    day_count[3] = day_count[3] + 1
-  }
-  else if (total_ds.cut4$date2[i] == 4){
-    day[4] = day[4] + total_ds.cut4$which_qu[i]
-    day_count[4] = day_count[4] + 1
-  }
-  else if (total_ds.cut4$date2[i] == 5){
-    day[5] = day[5] + total_ds.cut4$which_qu[i]
-    day_count[5] = day_count[5] + 1
-  }
-  if (total_ds.cut4$date2[i] == 6){
-    day[6] = day[6] + total_ds.cut4$which_qu[i]
-    day_count[6] = day_count[6] + 1
-  }
-  else if (total_ds.cut4$date2[i] == 7){
-    day[7] = day[7] + total_ds.cut4$which_qu[i]
-    day_count[7] = day_count[7] + 1
-  }
-  hours = (total_ds.cut4$time[i]-total_ds.cut4$time[i]%%60)/60
-  for (k in 0:23){
-    if (hours == k){
-      hour[k + 1] = hour[k + 1] + total_ds.cut4$which_qu[i]
-      hour_count[k + 1] = hour_count[k + 1] + 1
-    }
-    if (hours == 12){
-      print(total_ds.cut4$created_at[i])
-    }
-  
-  }
-}
-hour = hour/hour_count
-day = day/day_count
-day = day/max(day) * 5.6
-
-
-hour2 <- hour
-
-for (k in 0:18){
-  hour2[k + 1] <- hour[k + 6]
-  print(k+6)
-}
-hour2[20] <- hour[1]
-hour2[21] <- hour[2]
-hour2[22] <- hour[3]
-hour2[23] <- hour[4]
-hour2[24] <- hour[5]
-
-hour2[5] <- NaN
-hour2[6] <- 2.3
-hour2[7] <- 2.0
-require(ggplot2)
-hour2 <- hour2 *1.4
-quantile <- hour2
-# function to compute standard error of mean
-se <- function(x) sqrt(var(x)/length(x)) 
-set.seed(9876) 
-par(1,1)
-DF <- data.frame(variable = as.factor(1:10),
-                 value = sample(10, replace = TRUE))
-week <-c("Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica")
-quantile <- day
-DF2 <- data.frame(fac = 1:7, value = day)
-require(ggplot2)
-ggplot(DF2, aes(x = fac, y = value, fill = day)) +
-    geom_bar(width = 1, stat = "identity", color = "white") +
-  scale_x_continuous(breaks=1:7,labels=c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")) + xlab("Weekday") + ylab("Quantile")
-
-
-plot(day)
-plot(hour2, type = "lines")
 ```
