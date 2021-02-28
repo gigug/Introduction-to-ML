@@ -24,11 +24,11 @@ library("e1071")
 library("MLmetrics")
 library("sjmisc")
 library("tidyverse")
-## store api keys (these are fake example values; replace with your own keys)
-api_key <- "tfFu0don4XCDcKigkktZlfkAc"
-api_secret_key <- "B5F9vuRbLCPyFbfxTiH21std7wKfJm7ZVOzKgwf6G6NRujLbsX"
-access_token <- "1095044460-vahdfY9jgfvAMKpDzfygtEiVdVnPYoS0DAGs8F8"
-access_token_secret <- "mp07boiX6UFiToKtD0F4lyfpux4h4cxnSvhfTk1W81LWs"
+## store api keys
+api_key <- ENTER_YOUR_KEY
+api_secret_key <- ENTER_YOUR_SECRET_KEY
+access_token <- ENTER_YOUR_TOKEN
+access_token_secret <- ENTER_YOUR_SECRET_TOKEN
 
 ## authenticate via web browser
 token <- create_token(
@@ -53,35 +53,14 @@ list_ff <- c("jackbox",
               "whataburger",
               "shakeshack")
 
-list_ff <- c( "popeyeschicken",
-              "littlecaesars",
-              "BurgerKing",
-              "tacobell",
-              "pizzahut",
-              "kfc",
-              "wendys",
-              "FiveGuys",
-              "arbys",
-              "panerabread",
-              "whataburger")
-
-
+#get the first 3500 tweets for each account
 for (ff in list_ff){
   nam <- ff
-  assign(nam, get_timeline(ff, n = 10000))
+  assign(nam, get_timeline(ff, n = 3500))
 }
 ```
 
 ```{r, echo = TRUE}
-#fisso a 50/50 il rateo con le risposte
-
-
-
-#total_ds <- rbind(tacobell, jackbox, popeyeschicken, littlecaesars, 
-#               BurgerKing,  PapaJohns ,
-#               pizzahut, kfc, wendys , FiveGuys, arbys, 
-#               panerabread, whataburger, shakeshack)
-
 total_ds <- rbind(tacobell, popeyeschicken, littlecaesars, 
                BurgerKing, pizzahut, kfc, wendys, FiveGuys, arbys, 
                panerabread, whataburger)
