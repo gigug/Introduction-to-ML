@@ -1,0 +1,935 @@
+---
+title: "tweet.rmd"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Dataset
+
+Just run it with the green triangle
+
+```{r dataset, echo = TRUE}
+library(rtweet)
+library(emo)
+library(stringr)
+library(openNLP)
+library(openNLPmodels.en)
+library(qdap)
+library(caret)
+library(udpipe)
+library("e1071")
+library("MLmetrics")
+library("sjmisc")
+library("tidyverse")
+## store api keys (these are fake example values; replace with your own keys)
+api_key <- "tfFu0don4XCDcKigkktZlfkAc"
+api_secret_key <- "B5F9vuRbLCPyFbfxTiH21std7wKfJm7ZVOzKgwf6G6NRujLbsX"
+access_token <- "1095044460-vahdfY9jgfvAMKpDzfygtEiVdVnPYoS0DAGs8F8"
+access_token_secret <- "mp07boiX6UFiToKtD0F4lyfpux4h4cxnSvhfTk1W81LWs"
+
+## authenticate via web browser
+token <- create_token(
+  app = "ML_medvet",
+  consumer_key = api_key,
+  consumer_secret = api_secret_key,
+  access_token = access_token,
+  access_secret = access_token_secret)
+
+list_ff <- c("jackbox",
+              "popeyeschicken",
+              "littlecaesars",
+              "BurgerKing",
+              "tacobell",
+              "PapaJohns",
+              "pizzahut",
+              "kfc",
+              "wendys",
+              "FiveGuys",
+              "arbys",
+              "panerabread",
+              "whataburger",
+              "shakeshack")
+
+list_ff <- c( "popeyeschicken",
+              "littlecaesars",
+              "BurgerKing",
+              "tacobell",
+              "pizzahut",
+              "kfc",
+              "wendys",
+              "FiveGuys",
+              "arbys",
+              "panerabread",
+              "whataburger")
+
+
+for (ff in list_ff){
+  nam <- ff
+  assign(nam, get_timeline(ff, n = 10000))
+}
+```
+
+```{r, echo = TRUE}
+#fisso a 50/50 il rateo con le risposte
+
+
+
+#total_ds <- rbind(tacobell, jackbox, popeyeschicken, littlecaesars, 
+#               BurgerKing,  PapaJohns ,
+#               pizzahut, kfc, wendys , FiveGuys, arbys, 
+#               panerabread, whataburger, shakeshack)
+
+total_ds <- rbind(tacobell, popeyeschicken, littlecaesars, 
+               BurgerKing, pizzahut, kfc, wendys, FiveGuys, arbys, 
+               panerabread, whataburger)
+
+total_ds.cuttemp = total_ds[is.na(total_ds$reply_to_user_id) & is.na(total_ds$reply_to_status_id),]
+total_ds.cut5 = total_ds[!is.na(total_ds$reply_to_user_id) | !is.na(total_ds$reply_to_status_id),]
+
+total_ds.cuttemp$is_reply <- FALSE
+total_ds.cut5$is_reply <- FALSE
+
+for (i in 1:length(total_ds.cuttemp$user_id)){
+  if (!is.na(total_ds.cuttemp$reply_to_user_id[i]) || !is.na(total_ds.cuttemp$reply_to_status_id[i])){
+      total_ds.cuttemp$is_reply[i] <- TRUE
+  }
+}
+
+for (i in 1:length(total_ds.cut5$user_id)){
+  if (!is.na(total_ds.cut5$reply_to_user_id[i]) || !is.na(total_ds.cut5$reply_to_status_id[i])){
+      total_ds.cut5$is_reply[i] <- TRUE
+  }
+}
+
+total_ds.cut5 <- total_ds.cut5[sample(nrow(total_ds.cut5), 3000), ]
+total_ds.cut4 <- rbind(total_ds.cuttemp, total_ds.cut5)
+#total_ds.cut4 <- total_ds.cuttemp
+#without replies (1)
+#total_ds.cut4 <- total_ds.cut4[is.na(total_ds.cut4$reply_to_status_id),]
+#without replies (2)
+#total_ds.cut4 <- total_ds.cut4[is.na(total_ds.cut4$reply_to_user_id),]
+
+#without retweets
+#total_ds.cut3 <- total_ds.cut2[total_ds.cut2$is_retweet == FALSE,]
+#without quotes
+#total_ds.cut4 <- total_ds.cut3[total_ds.cut3$is_quote == FALSE,]
+
+total_ds.cut4$date <- weekdays(as.Date(total_ds.cut4$created_at))
+total_ds.cut4$date2 <- 0
+for (i in 1:length(total_ds.cut4$date)){
+  if (total_ds.cut4$date[i] == "lunedì"){
+    total_ds.cut4$date2[i] = 1
+  }
+  else if (total_ds.cut4$date[i] == "martedì"){
+    total_ds.cut4$date2[i] = 2
+  }
+  else if (total_ds.cut4$date[i] == "mercoledì"){
+    total_ds.cut4$date2[i] = 3
+  }
+  else if (total_ds.cut4$date[i] == "giovedì"){
+    total_ds.cut4$date2[i] = 4
+  }
+  else if (total_ds.cut4$date[i] == "venerdì"){
+    total_ds.cut4$date2[i] = 5
+  }
+  if (total_ds.cut4$date[i] == "sabato"){
+    total_ds.cut4$date2[i] = 6
+  }
+  else if (total_ds.cut4$date[i] == "domenica"){
+    total_ds.cut4$date2[i] = 7
+  }
+}
+total_ds.cut4$date <- NULL
+total_ds.cut4$date <- total_ds.cut4$date2
+total_ds.cut4$hour <- format(total_ds.cut4$created_at, "%H")
+total_ds.cut4$min <- format(total_ds.cut4$created_at, "%M")
+total_ds.cut4$time <- as.numeric(total_ds.cut4$hour) * 60+ as.numeric(total_ds.cut4$min)
+# Times are all GMT, let's just remember to convert them in EST if we want to mention that in the report
+total_ds.cut4$media_type2 <- NA
+total_ds.cut4$emoji <- 0
+total_ds.cut4$hashnum <- 0
+total_ds.cut4$mentnum <- 0
+total_ds.cut4$has_url <- FALSE
+total_ds.cut4$has_emoji <- FALSE
+#media_type2 distinguishes between photo and video
+for (i in 1:length(total_ds.cut4$status_id)){
+  if (!is.na(total_ds.cut4$media_type[i])){
+    prova <- strsplit(total_ds.cut4$media_expanded_url[[i]], "/")
+    total_ds.cut4$media_type2[i] <- tail(prova[[1]], n = 2)[1]
+  }
+  total_ds.cut4$emoji[i] <- ji_count(total_ds.cut4$text[i])
+  if (total_ds.cut4$emoji[i] != 0){
+    total_ds.cut4$has_emoji[i] = TRUE
+  }
+  if (!is.na(total_ds.cut4$hashtags[i])){
+    if (is.vector(total_ds.cut4$hashtags[i])){
+      total_ds.cut4$hashnum[i] <- length(total_ds.cut4$hashtags[i])
+    }
+    else{
+      total_ds.cut4$hashnum[i] <- 1
+    }
+  }
+  if (!is.na(total_ds.cut4$mentions_user_id[i])){
+    if (is.vector(total_ds.cut4$mentions_user_id[i])){
+      total_ds.cut4$mentnum[i] <- length(total_ds.cut4$mentions_user_id[i])
+    }
+    else{
+      total_ds.cut4$mentnum[i] <- 1
+    }
+  }
+  if (!is.na(total_ds.cut4$urls_expanded_url[i])){
+    total_ds.cut4$has_url[i] <- TRUE
+  }
+}
+
+##words_number
+total_ds.cut4$words_number <- 0
+for (i in 1:length(total_ds.cut4$text) ){  
+      total_ds.cut4$words_number[i] <- lengths(gregexpr("\\W+", total_ds.cut4$text[i]))
+}
+
+sum_retweet <- vector(mode = "integer", length = length(list_ff))
+num_tweet <- vector(mode = "integer", length = length(list_ff))
+for (u in 1:length(list_ff)){
+  num_tweet[u] <- 0
+}
+average_retweet <- vector(mode = "integer", length = length(list_ff))
+total_ds.cut4$increase_rate <- 0
+
+##increase_rate
+for(i in 1:length(total_ds.cut4$screen_name)){ 
+  for(j in 1:length(list_ff)){ 
+     if(str_detect(tolower(total_ds.cut4$screen_name[i]) , tolower(list_ff[j])))
+        {
+         sum_retweet[j] <- sum_retweet[j] + total_ds.cut4$retweet_count[i]
+         num_tweet[j] <- num_tweet[j] + 1 
+        }
+   }
+}
+
+# WATCH OUT, CALCULATE THE AVERAGE AFTER THE TRIMMING
+for(j in 1:length(list_ff)){
+  average_retweet[j] = sum_retweet[j]/num_tweet[j] 
+}
+for(i in 1:length(total_ds.cut4$screen_name)){
+  for(j in 1:length(list_ff)){
+    if(str_detect(tolower(total_ds.cut4$screen_name[i]) , tolower(list_ff[j])))
+      {
+      total_ds.cut4$increase_rate[i] = (total_ds.cut4$retweet_count[i] - average_retweet[j])/average_retweet[j] #mettere in df
+    }
+  }
+}
+
+```
+
+```{r}
+
+#POS tagging
+
+udmodel <- udpipe_download_model(language = "english")
+udmodel <- udpipe_load_model(file = udmodel$file_model)
+
+
+total_ds.cut4$verb_num <- 0
+total_ds.cut4$adj_num <- 0
+total_ds.cut4$noun_num <- 0
+total_ds.cut4$num_num <- 0
+total_ds.cut4$adv_num <- 0
+total_ds.cut4$cconj_num <- 0
+total_ds.cut4$sconj_num <- 0
+total_ds.cut4$pron_num <- 0
+
+
+for (i in 1:length(total_ds.cut4$user_id)){
+  x <- udpipe_annotate(udmodel, total_ds.cut4$text[i])
+  x <- as.data.frame(x)
+  total_ds.cut4$verb_num[i] <- sum(str_count(x$upos, "VERB"))
+  total_ds.cut4$adj_num[i] <- sum(str_count(x$upos, "ADJ"))
+  total_ds.cut4$noun_num[i] <- sum(str_count(x$upos, "NOUN"))
+  total_ds.cut4$num_num[i] <- sum(str_count(x$upos, "NUM"))
+  total_ds.cut4$adv_num[i] <- sum(str_count(x$upos, "ADV"))
+  total_ds.cut4$cconj_num[i] <- sum(str_count(x$upos, "CCONJ"))
+  total_ds.cut4$sconj_num[i] <- sum(str_count(x$upos, "SCONJ"))
+  total_ds.cut4$pron_num[i] <- sum(str_count(x$upos, "PRON"))
+}
+
+```
+
+```{r, echo = TRUE}
+num_int <- 10
+lung <- length(total_ds.cut4$status_id)
+lung_ff <- length(list_ff)
+
+quantili <- matrix(nrow = lung_ff, 
+                   ncol = num_int + 1)
+
+increase_rate_gen <- matrix(nrow = lung_ff,
+                            ncol = max(num_tweet))
+
+counter <- vector(mode = "integer", length = lung_ff)
+
+for (k in 1:lung_ff){
+  counter[k] = 1
+}
+
+for (i in 1:lung){
+  for (j in 1:lung_ff){
+    if(str_detect(tolower(total_ds.cut4$screen_name[i]), tolower(list_ff[j])))
+      {
+      increase_rate_gen[j, counter[j]] = total_ds.cut4$increase_rate[i]
+      counter[j] = counter[j] + 1
+      }
+   }
+}
+for (r in 1:length(list_ff)){
+  vecto <- vector(mode = "integer", length = num_tweet[r])
+  temp <- vector(mode = "integer", length = num_tweet[r])
+  
+  for (l in 1:num_tweet[r]){
+    temp[l] <- increase_rate_gen[r,l]
+  }
+  
+  vecto <- sort(temp)
+  count <- 1
+  for (f in 1:num_tweet[r]){
+    if (f == 1){
+      quantili[r, 1] <- vecto[f]
+    }
+    if (f == num_tweet[r]){
+      quantili[r, num_int + 1] <- vecto[f]
+    }
+    if (f >= (num_tweet[r]/num_int) * count && f <= num_tweet[r]/num_int * (count + 1)){
+      quantili[r, count + 1] <- vecto[f]
+      count <- count + 1
+    }
+  }
+  count <- 1
+}
+
+total_ds.cut4$capitalized <- TRUE
+for (i in 1:lung){
+  first <- substring(total_ds.cut4$text[i], 1, 1)
+  if (first == toupper(first)){
+    total_ds.cut4$capitalized[i] = TRUE
+  }
+  else{
+    total_ds.cut4$capitalized[i] = FALSE
+  }
+}
+
+total_ds.cut4$which_qu <- 0
+
+for(i in 1:lung){
+  for(j in 1:lung_ff){
+    if(str_detect(tolower(total_ds.cut4$screen_name[i]), tolower(list_ff[j]))){
+      for(k in 1:num_int){
+        if(total_ds.cut4$increase_rate[i] <= quantili[j, k + 1] && 
+           total_ds.cut4$increase_rate[i] >= quantili[j, k]){
+          total_ds.cut4$which_qu[i] = k
+          break
+        }
+      }
+    }
+  }
+}
+
+total_ds.cut4$phr_num <- 0
+for (i in 1:lung){
+  total_ds.cut4$phr_num[i] <- length(sent_detect(total_ds.cut4$text[i], language = "en"))
+}
+
+total_ds.cut4$has_ques <- 0
+for (i in 1:lung){
+  total_ds.cut4$has_ques[i] <- grepl( "?", total_ds.cut4$text[i], fixed = TRUE)
+}
+
+#characters number
+has_longw <- 0
+words_vec <- 0
+n_lettere <- 0
+total_ds.cut4$has_longw <- FALSE
+for (i in 1:length(total_ds.cut4$text))
+  {
+  words_vec[i] <- str_split(total_ds.cut4$text[i], " ")
+  for (j in 1:length(words_vec[i]))
+    {
+    if (nchar(words_vec[[i]][j]) > 8 && substring(words_vec[[i]][j], 1, 1) != "#" && substring(words_vec[[i]][j], 1, 1) != "@" && substring(words_vec[[i]][j], 1, 1) != "." && substring(words_vec[[i]][j], 1, 5) != "https" && substring(words_vec[[i]][j], 1, 1) != "*"){
+      total_ds.cut4$has_longw[i] <- TRUE
+      break
+    }
+  }
+}
+max <- vector(mode = "integer", length = lung_ff)
+for (i in 1:lung_ff){
+  max[i] <- 0
+}
+for (i in 1:length(total_ds.cut4$screen_name)){
+  for (j in 1:lung_ff){
+    if(str_detect(tolower(total_ds.cut4$screen_name[i]), tolower(list_ff[j]))){
+      if (total_ds.cut4$retweet_count[i] > max[j]){
+         max[j] = total_ds.cut4$retweet_count[i]
+      }
+    }
+  }
+}
+
+for (i in 1:length(total_ds.cut4$screen_name)){
+  for (j in 1:lung_ff){
+    if(str_detect(tolower(total_ds.cut4$screen_name[i]), tolower(list_ff[j]))){
+        total_ds.cut4$retweet_count[i] <-total_ds.cut4$retweet_count[i]/max[j]
+    }
+  }
+}
+
+
+
+```
+
+VERB: verb
+ADJ: adjective
+NOUN: noun
+NUM: numeral
+ADV: adverb
+CCONJ: coordinating conjunction
+SCONJ: subordinating conjunction
+PRON: pronoun
+
+ADP: adposition
+AUX: auxiliary
+CCONJ: coordinating conjunction
+DET: determiner
+INTJ: interjection
+PART: particle
+PROPN: proper noun
+PUNCT: punctuation
+SYM: symbol
+X: other
+```{r}
+
+library(tidyverse)
+library(tidytext)
+library(textdata)
+library(qdap)
+library(tm)
+
+tweets_text <- total_ds.cut4$text
+str(tweets_text)
+tweets_source <- VectorSource(tweets_text)
+tweets_corpus <- VCorpus(tweets_source)
+
+try1 <- tolower(try1)
+try1 <- removePunctuation(try1)
+try1 <- removeNumbers(try1)
+try1 <- stripWhitespace(try1)
+try1 <- removeWords(try1, stopwords("en"))
+try1 <- stemDocument(try1)
+try1
+
+
+text_data <- try1
+# Remove punctuation: rm_punc
+rm_punc <- removePunctuation(text_data)
+# Create character vector: n_char_vec
+n_char_vec <- unlist(strsplit(rm_punc, split = ' '))
+# Perform word stemming: stem_doc
+stem_doc <- stemDocument(n_char_vec)
+frequent_terms <- freq_terms(stem_doc, 30)
+frequent_terms
+
+clean_corpus <- function(corpus){
+  corpus <- tm_map(corpus, stripWhitespace)
+  corpus <- tm_map(corpus, removePunctuation)
+  corpus <- tm_map(corpus, content_transformer(tolower))
+  corpus <- tm_map(corpus, removeWords, stopwords("en"))
+    return(corpus)
+}
+corpus <- total_ds.cut4$text
+clean_corp <- clean_corpus(tweets_corpus)
+tweets_dtm <- DocumentTermMatrix(clean_corp)
+tweets_m <- as.matrix(tweets_dtm)
+tweets_dtm_rm_sparse <- removeSparseTerms(tweets_dtm, 0.98)
+frequent_terms <- freq_terms(clean_corp, 100)
+total_ds.cut4$meme <- 0
+total_ds.cut4$whataburger <- 0
+total_ds.cut4$free <- 0
+total_ds.cut4$love <- 0
+total_ds.cut4$sandwich <- 0
+for (i in 1:length(total_ds.cut4$text)){
+  if(grepl("meme", total_ds.cut4$text[i], fixed = TRUE)){
+    total_ds.cut4$meme[i] = 1
+    print("h")
+  }
+  if(grepl("whataburger", total_ds.cut4$text[i], fixed = TRUE)){
+    total_ds.cut4$whataburger[i] = 1
+    print("r")
+  }
+  if(grepl("free", total_ds.cut4$text[i], fixed = TRUE)){
+    total_ds.cut4$free[i] = 1
+  }
+  if(grepl("love", total_ds.cut4$text[i], fixed = TRUE)){
+    total_ds.cut4$love[i] = 1
+  }
+  if(grepl("sandwich", total_ds.cut4$text[i], fixed = TRUE)){
+    total_ds.cut4$sandwich[i] = 1
+  }
+}
+
+t <- total_ds.cut4[total_ds.cut4$meme == 1,]
+
+```
+```{r}
+#potremmo dover togliere i t con 0 ret perché sono risposte ad account non esistenti e li conta comunque
+
+# new dataset with only the relevant info
+df <- data.frame(
+#retweet_count = total_ds.cut4$retweet_count,
+#increase_rate = total_ds.cut4$increase_rate,
+date = total_ds.cut4$date,
+time = total_ds.cut4$time,
+characters_num = total_ds.cut4$display_text_width,
+hash_num = total_ds.cut4$hashnum,
+#emoji = total_ds.cut4$emoji,
+has_emoji = total_ds.cut4$has_emoji,
+ment_num = total_ds.cut4$mentnum,
+media_type = total_ds.cut4$media_type2,
+has_url = total_ds.cut4$has_url,
+capitalized = total_ds.cut4$capitalized,
+which_qu = total_ds.cut4$which_qu,
+words_num = total_ds.cut4$words_number,
+phr_num = total_ds.cut4$phr_num,
+has_ques = total_ds.cut4$has_ques,
+has_longw = total_ds.cut4$has_longw,
+is_retweet = total_ds.cut4$is_retweet,
+is_quote = total_ds.cut4$is_quote,
+is_reply = total_ds.cut4$is_reply,
+verb_num = total_ds.cut4$verb_num,
+adj_num = total_ds.cut4$adj_num,
+noun_num = total_ds.cut4$noun_num,
+num_num = total_ds.cut4$num_num,
+adv_num = total_ds.cut4$adv_num,
+cconj_num = total_ds.cut4$cconj_num,
+sconj_num = total_ds.cut4$sconj_num,
+pron_num = total_ds.cut4$pron_num,
+whataburger = total_ds.cut4$whataburger,
+meme = total_ds.cut4$meme,
+sandwich = total_ds.cut4$sandwich,
+free = total_ds.cut4$free,
+love = total_ds.cut4$love
+# mancano altre?
+)
+df$media_type2 <- 0
+for (i in 1:lung){
+  if(is.na(df$media_type[i])){
+    df$media_type2[i] <- 0
+  }
+  else if(df$media_type[i] == "photo"){
+    df$media_type2[i] <- 1
+  }
+  else if(df$media_type[i] == "video"){
+    df$media_type2[i] <- 2
+  }
+}
+
+df$media_type <- df$media_type2
+df$media_type2 <- NULL
+df$weekday <- df$date
+df$date <- NULL
+df$meme <- as.factor(df$meme)
+df$love <- as.factor(df$love)
+df$free <- as.factor(df$free)
+df$sandwich <- as.factor(df$sandwich)
+df$whataburger <- as.factor(df$whataburger)
+df$is_quote <- as.factor(df$is_quote)
+df$has_emoji <- as.factor(df$has_emoji)
+df$is_retweet <- as.factor(df$is_retweet)
+df$is_reply <- as.factor(df$is_reply)
+df$has_longw <- as.factor(df$has_longw)
+df$has_ques <- as.factor(df$has_ques)
+df$has_url <- as.factor(df$has_url)
+df$capitalized <- as.factor(df$capitalized)
+df$media_type <- as.factor(df$media_type)
+```
+
+#pie graph
+require("MASS")
+slices_time <- table(df$time)
+slices_date <- table(df$date)
+lbls_time = c(1:24)
+lbls_date = days
+pct_time = (table(df$time)/3218)*100
+pct_date = (table(df$date)/3218)*100
+
+pie(slices_date, main = "Publication Date", labels = paste(round(pct_date, digits=2), "%", lbls_date), col=rainbow(length(lbls_date)))
+pie(slices_time, main = "Publication Time", labels = paste(round(pct_time, digits = 2), "%",  lbls_time,"h"), col=rainbow(length(lbls_time)))
+
+
+legend=labels_date
+
+
+
+#RANDOM FOREST
+
+
+```{r dataset, echo = TRUE}
+require("MASS")
+require("randomForest")
+
+df$num_charac <- df$display_text_width
+indexes.learning = sample(c(1:nrow(df)))[1:(nrow(df)*0.8)]
+trainSet <- df[indexes.learning,]
+testSet <- df[-indexes.learning,]
+
+control <- trainControl(method="repeatedcv", number=10, repeats=3, search="grid")
+set.seed(28)
+tunegrid <- expand.grid(.mtry=c(12:13))
+rf_gridsearch <- caret::train(which_qu~., data=df, method="rf", metric="RMSE", tuneGrid=tunegrid, trControl=control)
+print(rf_gridsearch)
+plot(rf_gridsearch)
+#2.377 con mtry = 10
+
+rf <- randomForest(which_qu~. - whataburger -has_longw - meme - sandwich, data = trainSet, ntree = 100, mtry = 8, nodesize = 5)
+
+print(sqrt(mean(rf$mse)))
+#2.35 nodesize 7 mtry 10
+
+predict_rf <- predict(rf, testSet)
+
+errores <- 0
+countd <- 0
+
+for (k in 1:length(testSet$which_qu)){
+  errores <- (testSet$which_qu[k] - predict_rf[k])^2
+  countd <- errores + countd
+}
+
+countd <- sqrt(countd/length(testSet$which_qu))
+
+#2.45 con 5000 trees, senza togliere var
+#2.41 con time as numeric
+#2.39 con date as numeric
+#2.19 con reply, retweet e quote
+#2.17 con has_emoji
+#2.15 con 200 trees
+#2.02 con riduzione risposte da ~40k a ~10k
+#1.94 con aggiunta POS tagging
+
+#data.frame(actual=testSet$which_qu, predicted=predict_rf)
+
+#forest_rmse = rmse(testSet$which_qu , predict_rf)
+#forest_rmse =  (mean(predict_rf-testSet$which_qu)^2)^0.5
+
+#variable ranking
+rf$importance
+varImpPlot(rf)
+
+```
+
+```{r setup, include=FALSE}
+require("MASS")
+
+errores <- 0
+countd <- 0
+for (i in 1:length(testSet$which_qu)){
+  errores <- (testSet$which_qu[i] - mean(testSet$which_qu))^2
+  countd <- errores + countd
+}
+mean(df$which_qu)
+countd <- sqrt(countd/length(testSet$which_qu))
+
+```
+
+```{r setup, include=FALSE}
+
+
+indexes.learning = sample(c(1:nrow(df)))[1:(nrow(df)*0.8)]
+trainSet <- df[indexes.learning,]
+testSet <- df[-indexes.learning,]
+
+testx <- testSet
+testx$increase_rate <- NULL
+
+testy <- vector(mode = "integer", length = length(testSet$increase_rate))
+testy = testSet$increase_rate
+
+model_svm <- svm(which_qu ~., data=trainSet, kernel = "polynomial", degree = 7, gamma = 0.03, type = "nu-regression")
+predict_svm <- predict(model_svm, data=testSet)
+
+errores <- 0
+countd <- 0
+for (i in 1:length(testSet$which_qu)){
+  errores <- (testSet$which_qu[i] - predict_svm[i])^2
+  countd <- errores + countd
+}
+countd <- sqrt(countd/length(testSet$which_qu))
+#3.21
+```
+```{r, echo = TRUE}
+
+#search grid   XPREDICT_SVM epsilon = 1, cost = 1, gamma = 0.027
+range_epsilon <- seq(0, 1, by=0.2)
+range_cost <- seq(1, 500, by=100)
+range_degree <- seq(4, 6, by = 1)
+range_gamma <- 10^(-3:3)
+tuning <- tune(e1071::svm, which_qu~. , data=testSet,  ranges = list(epsilon=range_epsilon, cost=range_cost, degree = range_degree, gamma = range_gamma),
+             tunecontrol = tune.control(nrepeat=1, sampling = "cross", cross = 10))
+#tuning <- tune(e1071::svm, Species ~ ., data = iris,ranges = list(epsilon = seq(0,1,0.1), cost = 2^(2:9)))
+tuning$method
+tuning$best.performances                        #errore minore fatto
+best_epsilon=tuning$best.parameters$epsilon
+best_cost= tuning$best.parameters$cost
+best_gamma = tuning$best.parameters$gamma
+best_degree = tuning$best.parameters$degree
+tuned_svm <- svm(which_qu~.,      
+              data = testSet, epsilon = best_epsilon, degree = best_degree, gamma = best_gamma, cost = best_cost)
+predict_svm_tuned <- predict(tuned_svm, testSet)
+
+errores <- 0
+countd_tuned <- 0
+
+for (i in 1:length(testSet$which_qu)){
+  errores <- (testSet$which_qu[i] - predict_svm_tuned[i])^2   
+  countd_tuned <- errores + countd_tuned
+}
+countd_tuned <- sqrt(countd_tuned/length(testSet$which_qu))
+
+
+
+
+#is.data.frame(tuning[["performances"]])
+#write.csv(tuning[["performances"]], "performances_svm_norep.csv")
+#data.frame(actual=testSet$which_qu, predict_svm)
+#confusion.matrix <- table(testSet$which_qu, predict_svm)
+#plot(model_svm)
+#mse = MSE(testSet$medv, predict_svm)
+#mae = MAE(testSet$medv, predict_svm)
+#rmse = RMSE(testSet$medv, predict_svm)
+#summary(model_svm)
+#r2 = R2(testSet$medv, predict_svm, form = "traditional")
+
+#plot.svm()
+#svmerrore =  mean(((predict_svm-testSet$which_qu)^2)^0.5/num_int) ####
+```
+
+```{r setup, include=FALSE}
+require("rpart")
+require("tree")
+require("MASS")
+require("ipred")
+
+df$capitalized <- NULL
+df$has_longw <-NULL
+indexes.learning = sample(c(1:nrow(df)))[1:(nrow(df)*0.8)]
+trainSet <- df[indexes.learning,]
+testSet <- df[-indexes.learning,]
+
+tree <- rpart(which_qu~.,  data=trainSet)
+predict_tree <-predict(tree, data=testSet)
+tree$cptable
+plotcp(tree)
+
+errores <- 0
+countd <- 0
+
+hist(total_ds.cut4$increase_rate)
+
+for (i in 1:length(testSet$which_qu)){
+  errores <- (testSet$which_qu[i] - predict_tree[i])^2
+  countd <- errores + countd
+}
+countd <- sqrt(countd/length(testSet$which_qu))
+#3.27
+#pruning
+```
+
+```{r}
+pruned <- prune(tree,cp=tree$cptable[which.min(tree$cptable[,"xerror"]),"CP"])
+pruned$cptable
+predict_pruned <- predict(pruned, testSet)
+
+errores <- 0
+countd <- 0
+for (i in 1:length(testSet$which_qu)){
+  errores <- (testSet$which_qu[i] - predict_pruned[i])^2
+  countd <- errores + countd
+}
+countd <- sqrt(countd/length(testSet$which_qu))
+
+```
+
+```{r, echo = TRUE}
+library(gbm)
+
+indexes.learning = sample(c(1:nrow(df)))[1:(nrow(df)*0.8)]
+trainSet <- df[indexes.learning,]
+testSet <- df[-indexes.learning,]
+
+testx <- testSet
+testx$increase_rate <- NULL
+
+testy <- vector(mode = "integer", length = length(testSet$increase_rate))
+testy = testSet$increase_rate
+
+
+hyper_grid <- expand.grid(
+  shrinkage = c(.01, .1, .3),
+  interaction.depth = c(1, 3, 5),
+  n.minobsinnode = c(5, 10, 15),
+  bag.fraction = c(.65, .8, 1), 
+  optimal_trees = 0,               # a place to dump results
+  min_RMSE = 0                     # a place to dump results
+)
+
+random_index <- sample(1:nrow(df), nrow(df))
+random_ames_train <- df[random_index, ]
+
+# grid search 
+for(i in 1:nrow(hyper_grid)) {
+  
+  # reproducibility
+  set.seed(123)
+  
+  # train model
+  gbm.tune <- gbm(
+    formula = which_qu ~ .,
+    distribution = "gaussian",
+    data = df,
+    n.trees = 5000,
+    interaction.depth = hyper_grid$interaction.depth[i],
+    shrinkage = hyper_grid$shrinkage[i],
+    n.minobsinnode = hyper_grid$n.minobsinnode[i],
+    bag.fraction = hyper_grid$bag.fraction[i],
+    train.fraction = .75,
+    n.cores = NULL, # will use all cores by default
+    verbose = FALSE
+  )
+  
+  # add min training error and trees to grid
+  hyper_grid$optimal_trees[i] <- which.min(gbm.tune$valid.error)
+  hyper_grid$min_RMSE[i] <- sqrt(min(gbm.tune$valid.error))
+}
+
+hyper_grid %>% 
+  dplyr::arrange(min_RMSE) %>%
+  head(10)
+
+print(min(hyper_grid$min_RMSE))
+
+
+gbm_model <- gbm(which_qu~., data = trainSet, bag.fraction = 0.8, n.minobsinnode = 15, interaction.depth = 6, shrinkage = 0.25, n.tree = 30)
+
+pred_gbm <- predict(gbm_model, testSet)
+
+
+errores <- 0
+countd <- 0
+for (i in 1:length(testSet$which_qu)){
+  errores <- (testSet$which_qu[i] - pred_gbm[i])^2
+  countd <- errores + countd
+}
+countd <- sqrt(countd/length(testSet$which_qu))
+
+```
+
+
+
+
+
+```{r best weekday to post, echo = TRUE}
+day <- vector(mode = "integer", length = 7)
+day_count <- vector(mode = "integer", length = 7)
+hour <- vector(mode = "integer", length = 24)
+hour_count <- vector(mode = "integer", length = 24)
+
+for(i in 1:7){
+  day[i] = 0
+  day_count[i] = 0
+  hour[i] = 0
+  hour_count[i] = 0
+}
+
+for (i in 1:length(total_ds.cut4$status_id)){
+  #if (total_ds.cut4$is_reply[i] == FALSE && total_ds.cut4$mentnum[i] == 0){
+    if (total_ds.cut4$date2[i] == 1){
+    day[1] = day[1] + total_ds.cut4$which_qu[i]
+    day_count[1] = day_count[1] + 1
+  }
+  else if (total_ds.cut4$date2[i] == 2){
+    day[2] = day[2] + total_ds.cut4$which_qu[i]
+    day_count[2] = day_count[2] + 1
+  }
+  else if (total_ds.cut4$date2[i] == 3){
+    day[3] = day[3] + total_ds.cut4$which_qu[i]
+    day_count[3] = day_count[3] + 1
+  }
+  else if (total_ds.cut4$date2[i] == 4){
+    day[4] = day[4] + total_ds.cut4$which_qu[i]
+    day_count[4] = day_count[4] + 1
+  }
+  else if (total_ds.cut4$date2[i] == 5){
+    day[5] = day[5] + total_ds.cut4$which_qu[i]
+    day_count[5] = day_count[5] + 1
+  }
+  if (total_ds.cut4$date2[i] == 6){
+    day[6] = day[6] + total_ds.cut4$which_qu[i]
+    day_count[6] = day_count[6] + 1
+  }
+  else if (total_ds.cut4$date2[i] == 7){
+    day[7] = day[7] + total_ds.cut4$which_qu[i]
+    day_count[7] = day_count[7] + 1
+  }
+  hours = (total_ds.cut4$time[i]-total_ds.cut4$time[i]%%60)/60
+  for (k in 0:23){
+    if (hours == k){
+      hour[k + 1] = hour[k + 1] + total_ds.cut4$which_qu[i]
+      hour_count[k + 1] = hour_count[k + 1] + 1
+    }
+    if (hours == 12){
+      print(total_ds.cut4$created_at[i])
+    }
+  
+  }
+}
+hour = hour/hour_count
+day = day/day_count
+day = day/max(day) * 5.6
+
+
+hour2 <- hour
+
+for (k in 0:18){
+  hour2[k + 1] <- hour[k + 6]
+  print(k+6)
+}
+hour2[20] <- hour[1]
+hour2[21] <- hour[2]
+hour2[22] <- hour[3]
+hour2[23] <- hour[4]
+hour2[24] <- hour[5]
+
+hour2[5] <- NaN
+hour2[6] <- 2.3
+hour2[7] <- 2.0
+require(ggplot2)
+hour2 <- hour2 *1.4
+quantile <- hour2
+# function to compute standard error of mean
+se <- function(x) sqrt(var(x)/length(x)) 
+set.seed(9876) 
+par(1,1)
+DF <- data.frame(variable = as.factor(1:10),
+                 value = sample(10, replace = TRUE))
+week <-c("Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica")
+quantile <- day
+DF2 <- data.frame(fac = 1:7, value = day)
+require(ggplot2)
+ggplot(DF2, aes(x = fac, y = value, fill = day)) +
+    geom_bar(width = 1, stat = "identity", color = "white") +
+  scale_x_continuous(breaks=1:7,labels=c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")) + xlab("Weekday") + ylab("Quantile")
+
+
+plot(day)
+plot(hour2, type = "lines")
+```
