@@ -4,7 +4,7 @@ Final Project from UniTs DSSC's Introduction to Machine Learning course, written
 
 ## General Info
 
-This project, by [@gjuls](https://www.github.com/gjuls) and me, is popularity predictor for American fast food chains' tweets.
+This project, by [@gjuls](https://www.github.com/gjuls) and I, is popularity predictor for American fast food chains' tweets.
 
 We analyzed the activity of 13 fast food chains on Twitter and searched for the best predictor for their popularity.
 
