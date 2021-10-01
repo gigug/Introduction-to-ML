@@ -1,10 +1,10 @@
 ## Tweet Popularity Predictor
 
-Final Project from UniTs DSSC's Introduction to Machine Learning course, written in RMarkdown.
+Final Project from the course "Introduction to Machine Learning" @ Data Science & Scientific Computing, University of Trieste, year 2020/2021, written in RMarkdown.
 
 ## General Info
 
-This project, by [@gjuls](https://www.github.com/gjuls) and I, is popularity predictor for American fast food chains' tweets.
+This project, by [@gjuls](https://www.github.com/gjuls) and I, is a popularity predictor for American fast food chains' tweets.
 
 We analyzed the activity of 13 fast food chains on Twitter and searched for the best predictor for their popularity.
 
