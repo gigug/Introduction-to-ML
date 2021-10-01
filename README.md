@@ -4,4 +4,7 @@ Final Project from UniTs DSSC's Introduction to Machine Learning course, written
 
 ## General Info
 
-Build a popularity predictor for American fast food chains based on their retweet quantiles
+This project, by @gjuls and me, is popularity predictor for American fast food chains' tweets.
+We analyzed the activity of 13 fast food chains on Twitter and searched for the best predictor for their popularity.
+We analyzed NLP-related features, such as length of words or number of emojis, time-related features, such as time and weekday of posting, and much more.
+
